@@ -1,19 +1,52 @@
+"""Laboratório 01: Leitura, exibição e separação de canais RGB (BGR no OpenCV)."""
 
-# ###**Laboratório 01** 
-# **Leitura, Exibição e Separação de Canais RGB**
-# **Objetivo:** Praticar a leitura de arquivos JPEG e entender a decomposição de cores no espaço RGB.
+from __future__ import annotations
 
-# ---
-# 1 - Crie um script em Python utilizando a biblioteca OpenCV (cv2) que realize a leitura de uma imagem no formato JPEG 
-# (utilize uma das imagens sugeridas).
+from pathlib import Path
+import argparse
+import cv2
 
-# 2 - Exiba a imagem original colorida em uma janela com um título apropriado.
 
-# 3 - Separe a imagem colorida em seus três canais componentes: Vermelho (R), Verde (G) e Azul (B). Lembre-se que o 
-# OpenCV tipicamente lê imagens no formato BGR.
+DEFAULT_IMAGE = Path(__file__).resolve().parent / "flores01.jpg"
 
-# 4 - Crie e exiba três imagens em escala de cinza separadas, onde cada imagem representa a intensidade do respectivo 
-# canal (R, G e B). Dica: Ao exibir o canal, certifique-se de que ele esteja representado como uma imagem de 8 bits 
-# em escala de cinza para visualização correta.
 
-# 5 - Adicione um texto descritivo (título da janela) para cada canal exibido 
+def carregar_imagem(caminho: Path):
+    """Carrega uma imagem colorida (8 bits por canal) usando OpenCV."""
+    imagem = cv2.imread(str(caminho), cv2.IMREAD_COLOR)
+    if imagem is None:
+        raise FileNotFoundError(
+            f"Não foi possível abrir a imagem '{caminho}'. "
+            "Verifique se o arquivo existe e se está em um formato suportado."
+        )
+    return imagem
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Lê uma imagem JPEG e exibe canais R, G e B em escala de cinza."
+    )
+    parser.add_argument(
+        "--imagem",
+        type=Path,
+        default=DEFAULT_IMAGE,
+        help=f"Caminho da imagem de entrada (padrão: {DEFAULT_IMAGE.name}).",
+    )
+    args = parser.parse_args()
+
+    imagem_bgr = carregar_imagem(args.imagem)
+
+    # OpenCV lê no formato BGR.
+    canal_b, canal_g, canal_r = cv2.split(imagem_bgr)
+
+    cv2.imshow("Imagem original (BGR)", imagem_bgr)
+    cv2.imshow("Canal Vermelho (R) - escala de cinza", canal_r)
+    cv2.imshow("Canal Verde (G) - escala de cinza", canal_g)
+    cv2.imshow("Canal Azul (B) - escala de cinza", canal_b)
+
+    print("Janelas abertas. Pressione qualquer tecla para encerrar.")
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    main()
