@@ -1,101 +1,62 @@
-"""Laboratório 02: conversão HSV e análise de canais em lote.
-
-Ao executar este arquivo, todas as imagens suportadas da pasta LAB02 são processadas.
-A visualização é exibida em um único painel (2x2) para evitar múltiplas janelas.
-"""
+"""Laboratório 02: Conversão BGR -> HSV e análise visual de canais H, S e V."""
 
 from __future__ import annotations
 
 from pathlib import Path
+import argparse
 import cv2
-import numpy as np
 
 
-BASE_DIR = Path(__file__).resolve().parent
-SUPPORTED_EXTENSIONS = ("*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tif", "*.tiff")
-WINDOW_NAME = "LAB02 - Original + Canais HSV"
-MAX_WINDOW_WIDTH = 1400
-MAX_WINDOW_HEIGHT = 900
+DEFAULT_IMAGE = Path(__file__).resolve().parent / "fruta12.jpg"
 
 
-def listar_imagens(base_dir: Path) -> list[Path]:
-    imagens: list[Path] = []
-    for pattern in SUPPORTED_EXTENSIONS:
-        imagens.extend(base_dir.glob(pattern))
-    return sorted(imagens)
-
-
-def criar_tile(imagem: np.ndarray, titulo: str, tamanho: tuple[int, int]) -> np.ndarray:
-    tile = cv2.resize(imagem, tamanho, interpolation=cv2.INTER_AREA)
-    cv2.putText(
-        tile,
-        titulo,
-        (15, 30),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.85,
-        (255, 255, 255),
-        2,
-        cv2.LINE_AA,
-    )
-    return tile
-
-
-def ajustar_para_tela(imagem: np.ndarray) -> np.ndarray:
-    altura, largura = imagem.shape[:2]
-    fator = min(MAX_WINDOW_WIDTH / largura, MAX_WINDOW_HEIGHT / altura, 1.0)
-    if fator == 1.0:
-        return imagem
-    novo_tamanho = (int(largura * fator), int(altura * fator))
-    return cv2.resize(imagem, novo_tamanho, interpolation=cv2.INTER_AREA)
-
-
-def montar_painel(imagem_bgr: np.ndarray, nome_arquivo: str) -> np.ndarray:
-    imagem_hsv = cv2.cvtColor(imagem_bgr, cv2.COLOR_BGR2HSV)
-    canal_h, canal_s, canal_v = cv2.split(imagem_hsv)
-
-    # H (Hue / tonalidade): valores mais claros indicam matizes com valor numérico maior
-    # no intervalo [0, 179] do OpenCV. Não representa brilho.
-    # S (Saturation / saturação): valores mais claros indicam cor mais "pura" e intensa.
-    # V (Value / brilho): representa a intensidade luminosa; claro = região mais iluminada.
-
-    h, w = imagem_bgr.shape[:2]
-    tile_size = (max(320, w // 2), max(240, h // 2))
-
-    original = criar_tile(imagem_bgr.copy(), f"Original: {nome_arquivo}", tile_size)
-    hue = criar_tile(cv2.cvtColor(canal_h, cv2.COLOR_GRAY2BGR), "Canal H", tile_size)
-    sat = criar_tile(cv2.cvtColor(canal_s, cv2.COLOR_GRAY2BGR), "Canal S", tile_size)
-    val = criar_tile(cv2.cvtColor(canal_v, cv2.COLOR_GRAY2BGR), "Canal V", tile_size)
-
-    linha_superior = cv2.hconcat([original, hue])
-    linha_inferior = cv2.hconcat([sat, val])
-    painel = cv2.vconcat([linha_superior, linha_inferior])
-    return ajustar_para_tela(painel)
+def carregar_imagem(caminho: Path):
+    """Carrega uma imagem colorida com OpenCV."""
+    imagem = cv2.imread(str(caminho), cv2.IMREAD_COLOR)
+    if imagem is None:
+        raise FileNotFoundError(
+            f"Não foi possível abrir a imagem '{caminho}'. "
+            "Verifique se o arquivo existe e se está em um formato suportado."
+        )
+    return imagem
 
 
 def main() -> None:
-    imagens = listar_imagens(BASE_DIR)
-    if not imagens:
-        raise FileNotFoundError(f"Nenhuma imagem encontrada em {BASE_DIR}.")
+    parser = argparse.ArgumentParser(
+        description="Converte uma imagem para HSV e exibe canais H, S e V."
+    )
+    parser.add_argument(
+        "--imagem",
+        type=Path,
+        default=DEFAULT_IMAGE,
+        help=f"Caminho da imagem de entrada (padrão: {DEFAULT_IMAGE.name}).",
+    )
+    args = parser.parse_args()
 
-    cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+    imagem_bgr = carregar_imagem(args.imagem)
+    imagem_hsv = cv2.cvtColor(imagem_bgr, cv2.COLOR_BGR2HSV)
+    canal_h, canal_s, canal_v = cv2.split(imagem_hsv)
 
-    for indice, caminho in enumerate(imagens, start=1):
-        imagem_bgr = cv2.imread(str(caminho), cv2.IMREAD_COLOR)
-        if imagem_bgr is None:
-            print(f"[AVISO] Não foi possível abrir: {caminho.name}")
-            continue
+    # Análise visual dos canais HSV:
+    # H (Hue/Tonalidade): áreas claras indicam pixels com valores de matiz mais altos
+    # dentro do intervalo do OpenCV (0 a 179). Esse canal representa "qual cor" é
+    # percebida, não o brilho. Em geral, regiões com cores diferentes podem aparecer
+    # com níveis de cinza distintos mesmo tendo brilho semelhante.
+    #
+    # S (Saturação): áreas claras indicam cores mais puras/vivas (alta saturação).
+    # Áreas escuras tendem a cores dessaturadas, próximas de tons de cinza.
+    #
+    # V (Valor/Brilho): representa a intensidade luminosa. Áreas claras no V
+    # correspondem às partes mais iluminadas da imagem original; áreas escuras,
+    # às regiões de sombra ou menor brilho.
 
-        painel = montar_painel(imagem_bgr, caminho.name)
-        cv2.imshow(WINDOW_NAME, painel)
-        print(
-            f"[{indice}/{len(imagens)}] {caminho.name} | "
-            "ENTER/ESPACO: próxima imagem | Q/ESC: sair"
-        )
+    cv2.imshow("Imagem original (BGR)", imagem_bgr)
+    cv2.imshow("Canal H (Tonalidade) - escala de cinza", canal_h)
+    cv2.imshow("Canal S (Saturacao) - escala de cinza", canal_s)
+    cv2.imshow("Canal V (Brilho/Valor) - escala de cinza", canal_v)
 
-        tecla = cv2.waitKey(0) & 0xFF
-        if tecla in (ord("q"), 27):
-            break
-
+    print("Janelas abertas. Pressione qualquer tecla para encerrar.")
+    cv2.waitKey(0)
     cv2.destroyAllWindows()
 
 
